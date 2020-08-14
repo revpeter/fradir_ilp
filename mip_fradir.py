@@ -5,6 +5,7 @@ from itertools import product
 import numpy as np
 import pandas as pd
 import time
+import resource
 
 
 # The network
@@ -20,11 +21,11 @@ S = len(cut_srlgs)
 
 
 # The matrix of the intensity values, dimensions: [L,P,M] (link, position, magnitude)
-intensity = np.load('intensities/italy.npy')
+intensity = np.load('intensities/italy_ds4.npy')
 
 
 # The matrix of earthquake probabilities, dimensions: [P,M] (position, magnitude)
-prob_matrix = pd.read_csv('earthquake_probabilities/italy.csv').drop(['Lat', 'Long'], axis=1).to_numpy()
+prob_matrix = pd.read_csv('earthquake_probabilities/italy_ds4.csv').drop(['Lat', 'Long'], axis=1).to_numpy()
 P, M = prob_matrix.shape
 epicenters = range(P)
 magnitudes = range(M)
@@ -37,7 +38,7 @@ cost = 1
 
 
 # Compressing the problem, to 1 SLRG and the minimum number of earthquakes
-cut_srlgs = cut_srlgs[2:3]
+cut_srlgs = cut_srlgs[:5]
 S = len(cut_srlgs)
 print(cut_srlgs)
 
@@ -62,6 +63,7 @@ epicenters = range(P)
 magnitudes = range(M)
 
 print(f'The shape of the intensity matrix: {intensity.shape}')
+print(f'Memory usage: {int(int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)/1000)} MB')
 
 start = time.perf_counter()
 
@@ -74,8 +76,7 @@ deltaH = [model.add_var(var_type=INTEGER, lb=0, ub=6) for l,_ in enumerate(g.edg
 Z = [[[model.add_var(var_type=BINARY) for k in magnitudes] for j in epicenters] for i in range(S)]
 Y = [[[model.add_var(var_type=BINARY) for k in magnitudes] for j in epicenters] for i in links]
 print("%.1f s:\tVariables created..."%(time.perf_counter()-start))
-
-
+print(f'Memory usage: {int(int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)/1000)} MB')
 #Objective Function
 model.objective = xsum( cost * deltaH[l] for l in links )
 print("%.1f s:\tObjecive function created..."%(time.perf_counter()-start))
@@ -85,20 +86,29 @@ print("%.1f s:\tObjecive function created..."%(time.perf_counter()-start))
 for l,p,m in product(*[links, epicenters, magnitudes]):
     model.add_constr( Y[l][p][m] >= 1 - ((Hnull + deltaH[l]) / intensity[l,p,m]) )
 print("%.1f s:\tFirst constraint created..."%(time.perf_counter()-start))
+print(f'Memory usage: {int(int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)/1000)} MB')
+print(f"{L*P*M} constraint")
 
 
 #Constraint 2
 for (c,s), p, m in product(*[enumerate(cut_srlgs), epicenters, magnitudes]):
     model.add_constr( Z[c][p][m] >= (xsum(Y[list(g.edges).index(linkID)][p][m] for linkID in s) - len(s) + 1) )
 print("%.1f s:\tSecond constraint created..."%(time.perf_counter()-start))
+print(f'Memory usage: {int(int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)/1000)} MB')
+print(f"{S*P*M} constraint")
+
 
 #Constraint 3
 for c,_ in enumerate(cut_srlgs):
     model.add_constr(xsum( Z[c][p][m] * prob_matrix[p,m] for p,m in product(epicenters,magnitudes) ) <= T, "c3_"+str(c))
 print("%.1f s:\tThird constraint created..."%(time.perf_counter()-start))
+print(f'Memory usage: {int(int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)/1000)} MB')
 
 #Start optimization
+print('Optimizing...')
 model.optimize()#max_seconds=
 
+
+print(f'Memory usage: {int(int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)/1000)} MB')
 selected = [(deltaH[l].x,e) for l,e in enumerate(g.edges) if deltaH[l].x >= 0.5]
 print("selected items: {}".format(selected))
