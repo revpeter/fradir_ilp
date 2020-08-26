@@ -15,17 +15,17 @@ links = range(L)
 
 
 # The cut SRLGs
-with open ('min_cut_SRLGs/italy_corrected', 'rb') as fp:
+with open ('min_cut_SRLGs/italy_complete', 'rb') as fp:
     cut_srlgs = pickle.load(fp)
 S = len(cut_srlgs)
 
 
 # The matrix of the intensity values, dimensions: [L,P,M] (link, position, magnitude)
-intensity = np.load('intensities/italy_ds4.npy')
+intensity = np.load('intensities/italy_ds16.npy')
 
 
 # The matrix of earthquake probabilities, dimensions: [P,M] (position, magnitude)
-prob_matrix = pd.read_csv('earthquake_probabilities/italy_ds4.csv').drop(['Lat', 'Long'], axis=1).to_numpy()
+prob_matrix = pd.read_csv('earthquake_probabilities/italy_ds16.csv').drop(['Lat', 'Long'], axis=1).to_numpy()
 P, M = prob_matrix.shape
 epicenters = range(P)
 magnitudes = range(M)
@@ -33,34 +33,35 @@ magnitudes = range(M)
 
 # Parameters
 Hnull = 6
-T = 0.0001
+T = 0.001
 cost = 1
 
 
 # Compressing the problem, to 1 SLRG and the minimum number of earthquakes
-cut_srlgs = cut_srlgs[:5]
-S = len(cut_srlgs)
-print(cut_srlgs)
+if False:
+    cut_srlgs = cut_srlgs[:5]
+    S = len(cut_srlgs)
+    print(cut_srlgs)
 
-column_mask = np.full(intensity.shape[2], fill_value=False, dtype=bool)
-row_mask = np.full(intensity.shape[1], fill_value=False, dtype=bool)
+    column_mask = np.full(intensity.shape[2], fill_value=False, dtype=bool)
+    row_mask = np.full(intensity.shape[1], fill_value=False, dtype=bool)
 
-for srlg in cut_srlgs:
-    srlg_mask = np.full(intensity.shape[1:], fill_value=True, dtype=bool)
-    for link in srlg:
-        idx = list(g.edges).index(link)
-        print(idx, link)
-        link_mask = intensity[idx]>6
-        srlg_mask &= link_mask
-    column_mask |= srlg_mask.any(axis=0)
-    row_mask |= srlg_mask.any(axis=1)
+    for srlg in cut_srlgs:
+        srlg_mask = np.full(intensity.shape[1:], fill_value=True, dtype=bool)
+        for link in srlg:
+            idx = list(g.edges).index(link)
+            print(idx, link)
+            link_mask = intensity[idx]>6
+            srlg_mask &= link_mask
+        column_mask |= srlg_mask.any(axis=0)
+        row_mask |= srlg_mask.any(axis=1)
 
-intensity = intensity[:,:,column_mask][:,row_mask]
-prob_matrix = prob_matrix[:,column_mask][row_mask]
+    intensity = intensity[:,:,column_mask][:,row_mask]
+    prob_matrix = prob_matrix[:,column_mask][row_mask]
 
-P, M = prob_matrix.shape
-epicenters = range(P)
-magnitudes = range(M)
+    P, M = prob_matrix.shape
+    epicenters = range(P)
+    magnitudes = range(M)
 
 print(f'The shape of the intensity matrix: {intensity.shape}')
 print(f'Memory usage: {int(int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)/1000)} MB')
@@ -78,7 +79,7 @@ Y = [[[model.add_var(var_type=BINARY) for k in magnitudes] for j in epicenters] 
 print("%.1f s:\tVariables created..."%(time.perf_counter()-start))
 print(f'Memory usage: {int(int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)/1000)} MB')
 #Objective Function
-model.objective = xsum( cost * deltaH[l] for l in links )
+model.objective = xsum( deltaH[l] for l in links )
 print("%.1f s:\tObjecive function created..."%(time.perf_counter()-start))
 
 
