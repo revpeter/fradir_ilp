@@ -15,7 +15,7 @@ links = range(L)
 
 
 # The cut SRLGs
-with open ('min_cut_SRLGs/italy_complete', 'rb') as fp:
+with open ('min_cut_SRLGs/italy_complete_10-4', 'rb') as fp:
     cut_srlgs = pickle.load(fp)
 S = len(cut_srlgs)
 
@@ -33,7 +33,7 @@ magnitudes = range(M)
 
 # Parameters
 Hnull = 6
-T = 0.001
+T = 0.0001
 cost = 1
 
 
