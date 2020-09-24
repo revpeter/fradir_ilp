@@ -7,17 +7,35 @@ import pandas as pd
 import time
 import resource
 
+def get_SRLG_probability_matrix(srlg, network, intensity_matrix, intensity_tolerance, probability_matrix):
+    edges = list(network.edges)
+    srlg_occur = np.full(intensity_matrix.shape[1:], fill_value=True, dtype=bool)
+    for l in srlg:
+        l_idx = edges.index(l)
+        srlg_occur &= intensity[l_idx] > intensity_tolerance[l_idx]
+    return probability_matrix[srlg_occur]
+
+def remove_improbable_SRLGs(srlgs, network, intensity_matrix, intensity_tolerance, probability_matrix, threshold):
+    active_srlgs = srlgs.copy()
+    for s in active_srlgs.copy():
+        p = get_SRLG_probability_matrix(s, g, intensity, intensity_tolerance, prob_matrix).sum()
+        if p < threshold:
+            active_srlgs.remove(s)
+    return active_srlgs
+
 
 # The network
-g = nx.read_gml('networks/italy.gml', label="id")
+g = nx.read_gml('networks/italy_withLength.gml', label="id")
 L = len(g.edges)
 links = range(L)
 
 
 # The cut SRLGs
-with open ('min_cut_SRLGs/italy_complete_10-4', 'rb') as fp:
+with open ('min_cut_SRLGs/italy_complete', 'rb') as fp:
     cut_srlgs = pickle.load(fp)
-S = len(cut_srlgs)
+
+active_srlgs = cut_srlgs
+S = len(active_srlgs)
 
 
 # The matrix of the intensity values, dimensions: [L,P,M] (link, position, magnitude)
@@ -33,35 +51,12 @@ magnitudes = range(M)
 
 # Parameters
 Hnull = 6
-T = 0.0001
 cost = 1
+T = 0.01
 
+active_srlgs = remove_improbable_SRLGs(cut_srlgs, g, intensity, np.ones(L) * Hnull, prob_matrix, T)
+S = len(active_srlgs)
 
-# Compressing the problem, to 1 SLRG and the minimum number of earthquakes
-if False:
-    cut_srlgs = cut_srlgs[:5]
-    S = len(cut_srlgs)
-    print(cut_srlgs)
-
-    column_mask = np.full(intensity.shape[2], fill_value=False, dtype=bool)
-    row_mask = np.full(intensity.shape[1], fill_value=False, dtype=bool)
-
-    for srlg in cut_srlgs:
-        srlg_mask = np.full(intensity.shape[1:], fill_value=True, dtype=bool)
-        for link in srlg:
-            idx = list(g.edges).index(link)
-            print(idx, link)
-            link_mask = intensity[idx]>6
-            srlg_mask &= link_mask
-        column_mask |= srlg_mask.any(axis=0)
-        row_mask |= srlg_mask.any(axis=1)
-
-    intensity = intensity[:,:,column_mask][:,row_mask]
-    prob_matrix = prob_matrix[:,column_mask][row_mask]
-
-    P, M = prob_matrix.shape
-    epicenters = range(P)
-    magnitudes = range(M)
 
 print(f'The shape of the intensity matrix: {intensity.shape}')
 print(f'Memory usage: {int(int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)/1000)} MB')
@@ -70,46 +65,69 @@ start = time.perf_counter()
 
 #Model
 model = Model(sense=MINIMIZE, solver_name=GRB)
-print("%.1f s:\tModel created..."%(time.perf_counter()-start))
 
 #Variables
 deltaH = [model.add_var(var_type=INTEGER, lb=0, ub=6) for l,_ in enumerate(g.edges)]
 Z = [[[model.add_var(var_type=BINARY) for k in magnitudes] for j in epicenters] for i in range(S)]
 Y = [[[model.add_var(var_type=BINARY) for k in magnitudes] for j in epicenters] for i in links]
-print("%.1f s:\tVariables created..."%(time.perf_counter()-start))
+print("%.1f s:\tVáltozók létrehozva..."%(time.perf_counter()-start))
 print(f'Memory usage: {int(int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)/1000)} MB')
+
+
 #Objective Function
-model.objective = xsum( deltaH[l] for l in links )
-print("%.1f s:\tObjecive function created..."%(time.perf_counter()-start))
+model.objective = xsum( g.edges[link_id]['length'] * deltaH[link_idx] for link_idx,link_id in enumerate(g.edges) )
+print("%.1f s:\tCélfüggvény létrehozva..."%(time.perf_counter()-start))
+print(f'Memory usage: {int(int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)/1000)} MB')
 
 
 #Constraint 1
 for l,p,m in product(*[links, epicenters, magnitudes]):
     model.add_constr( Y[l][p][m] >= 1 - ((Hnull + deltaH[l]) / intensity[l,p,m]) )
-print("%.1f s:\tFirst constraint created..."%(time.perf_counter()-start))
+print("%.1f s:\tElső egyenlet létrehozva..."%(time.perf_counter()-start))
 print(f'Memory usage: {int(int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)/1000)} MB')
-print(f"{L*P*M} constraint")
 
 
 #Constraint 2
-for (c,s), p, m in product(*[enumerate(cut_srlgs), epicenters, magnitudes]):
+for (c,s), p, m in product(*[enumerate(active_srlgs), epicenters, magnitudes]):
     model.add_constr( Z[c][p][m] >= (xsum(Y[list(g.edges).index(linkID)][p][m] for linkID in s) - len(s) + 1) )
-print("%.1f s:\tSecond constraint created..."%(time.perf_counter()-start))
+print("%.1f s:\tMásodik egyenlet létrehozva..."%(time.perf_counter()-start))
 print(f'Memory usage: {int(int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)/1000)} MB')
-print(f"{S*P*M} constraint")
-
 
 #Constraint 3
-for c,_ in enumerate(cut_srlgs):
+for c,_ in enumerate(active_srlgs):
     model.add_constr(xsum( Z[c][p][m] * prob_matrix[p,m] for p,m in product(epicenters,magnitudes) ) <= T, "c3_"+str(c))
-print("%.1f s:\tThird constraint created..."%(time.perf_counter()-start))
+print("%.1f s:\tHarmadik egyenlet létrehozva..."%(time.perf_counter()-start))
 print(f'Memory usage: {int(int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)/1000)} MB')
 
 #Start optimization
-print('Optimizing...')
 model.optimize()#max_seconds=
-
-
+runtime_ILP = time.perf_counter()-start
 print(f'Memory usage: {int(int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)/1000)} MB')
-selected = [(deltaH[l].x,e) for l,e in enumerate(g.edges) if deltaH[l].x >= 0.5]
-print("selected items: {}".format(selected))
+
+# The result
+cost = 0
+selected = []
+upgrade_ILP = []
+for l,e in enumerate(g.edges):
+    if deltaH[l].x >= 0.5:
+        selected.append((deltaH[l].x,e, g.edges[e]['length']))
+        upgrade_ILP.append((e,deltaH[l].x))
+        cost += deltaH[l].x * g.edges[e]['length']
+print(cost)
+print(*selected, sep='\n')
+
+
+# Saving the result
+df_cost = pd.read_csv('results/Heuristic_comparison.csv')
+with open ('results/Heuristic_upgraded_edges', 'rb') as fp:
+    result_edge = pickle.load(fp)
+
+idx = 0
+df_cost.loc[idx,'Runtime ILP'] = runtime_ILP
+df_cost.loc[idx,'Cost ILP'] = cost
+df_cost.to_csv('results/Heuristic_comparison.csv', index=False, float_format='%.5f')
+result_edge[idx]['Upgrade ILP'] = upgrade_ILP
+
+df_cost.to_csv('results/Heuristic_comparison.csv', index=False, float_format='%.5f')
+with open('results/Heuristic_upgraded_edges', 'wb') as fp:
+    pickle.dump(result_edge, fp)
