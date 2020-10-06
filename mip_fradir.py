@@ -52,7 +52,7 @@ magnitudes = range(M)
 # Parameters
 Hnull = 6
 cost = 1
-T = 0.01
+T = 0.0005
 
 active_srlgs = remove_improbable_SRLGs(cut_srlgs, g, intensity, np.ones(L) * Hnull, prob_matrix, T)
 S = len(active_srlgs)
@@ -122,7 +122,7 @@ df_cost = pd.read_csv('results/Heuristic_comparison.csv')
 with open ('results/Heuristic_upgraded_edges', 'rb') as fp:
     result_edge = pickle.load(fp)
 
-idx = 0
+idx = 14
 df_cost.loc[idx,'Runtime ILP'] = runtime_ILP
 df_cost.loc[idx,'Cost ILP'] = cost
 df_cost.to_csv('results/Heuristic_comparison.csv', index=False, float_format='%.5f')
