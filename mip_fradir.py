@@ -25,13 +25,13 @@ def remove_improbable_SRLGs(srlgs, network, intensity_matrix, intensity_toleranc
 
 
 # The network
-g = nx.read_gml('networks/italy_withLength.gml', label="id")
+g = nx.read_gml('networks/italy_995.gml', label="id")
 L = len(g.edges)
 links = range(L)
 
 
 # The cut SRLGs
-with open ('min_cut_SRLGs/italy_complete', 'rb') as fp:
+with open ('min_cut_SRLGs/italy_995_10-4', 'rb') as fp:
     cut_srlgs = pickle.load(fp)
 
 active_srlgs = cut_srlgs
@@ -52,7 +52,7 @@ magnitudes = range(M)
 # Parameters
 Hnull = 6
 cost = 1
-T = 0.0005
+T = 0.01
 
 active_srlgs = remove_improbable_SRLGs(cut_srlgs, g, intensity, np.ones(L) * Hnull, prob_matrix, T)
 S = len(active_srlgs)
@@ -122,7 +122,7 @@ df_cost = pd.read_csv('results/Heuristic_comparison.csv')
 with open ('results/Heuristic_upgraded_edges', 'rb') as fp:
     result_edge = pickle.load(fp)
 
-idx = 14
+idx = 0
 df_cost.loc[idx,'Runtime ILP'] = runtime_ILP
 df_cost.loc[idx,'Cost ILP'] = cost
 df_cost.to_csv('results/Heuristic_comparison.csv', index=False, float_format='%.5f')
