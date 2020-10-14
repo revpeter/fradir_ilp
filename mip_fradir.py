@@ -51,18 +51,13 @@ magnitudes = range(M)
 
 # Parameters
 Hnull = 6
-H = np.ones(L) * 6
-for i, e in enumerate(g.edges):
-    if g.edges[e]['onspine']:
-        H[i] += 1
 cost = 1
 T = 0.01
 
 for idx,T in enumerate(np.concatenate((np.arange(0.01, 0.001, -0.001), np.arange(0.001, 0.0004, -0.0001)))):
 
-    active_srlgs = remove_improbable_SRLGs(cut_srlgs, g, intensity, H, prob_matrix, T)
     S = len(active_srlgs)
-    H = np.ones(L) * 6
+    H = np.ones(L) * Hnull
     for i, e in enumerate(g.edges):
         if g.edges[e]['onspine']:
             H[i] += 1
@@ -79,6 +74,7 @@ for idx,T in enumerate(np.concatenate((np.arange(0.01, 0.001, -0.001), np.arange
     deltaH = [model.add_var(var_type=INTEGER, lb=0, ub=4) for l,_ in enumerate(g.edges)]
     Z = [[[model.add_var(var_type=BINARY) for k in magnitudes] for j in epicenters] for i in range(S)]
     Y = [[[model.add_var(var_type=BINARY) for k in magnitudes] for j in epicenters] for i in links]
+    W = [[model.add_var(var_type=BINARY) for k in magnitudes] for j in epicenters]
     print("%.1f s:\tVáltozók létrehozva..."%(time.perf_counter()-start))
     print(f'Memory usage: {int(int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)/1000)} MB')
 
@@ -103,8 +99,10 @@ for idx,T in enumerate(np.concatenate((np.arange(0.01, 0.001, -0.001), np.arange
     print(f'Memory usage: {int(int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)/1000)} MB')
 
     #Constraint 3
-    for c,_ in enumerate(active_srlgs):
-        model.add_constr(xsum( Z[c][p][m] * prob_matrix[p,m] for p,m in product(epicenters,magnitudes) ) <= T, "c3_"+str(c))
+    for (c,s), p, m in product(*[enumerate(cut_srlgs), epicenters, magnitudes]):
+        model.add_constr( W[p][m] >= Z[c][p][m] )
+
+    model.add_constr(xsum( W[p][m] * prob_matrix[p,m] for p,m in product(epicenters,magnitudes) ) <= T )
     print("%.1f s:\tHarmadik egyenlet létrehozva..."%(time.perf_counter()-start))
     print(f'Memory usage: {int(int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)/1000)} MB')
 
