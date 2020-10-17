@@ -1,45 +1,29 @@
 from mip import *
-import networkx as nx
-import pickle
+from backend import *
 from itertools import product
-import numpy as np
-import pandas as pd
 import time
 import resource
 
-def get_SRLG_probability_matrix(srlg, network, intensity_matrix, intensity_tolerance, probability_matrix):
-    edges = list(network.edges)
-    srlg_occur = np.full(intensity_matrix.shape[1:], fill_value=True, dtype=bool)
-    for l in srlg:
-        l_idx = edges.index(l)
-        srlg_occur &= intensity[l_idx] > intensity_tolerance[l_idx]
-    return probability_matrix[srlg_occur]
 
-def remove_improbable_SRLGs(srlgs, network, intensity_matrix, intensity_tolerance, probability_matrix, threshold):
-    active_srlgs = srlgs.copy()
-    for s in active_srlgs.copy():
-        p = get_SRLG_probability_matrix(s, g, intensity, intensity_tolerance, prob_matrix).sum()
-        if p < threshold:
-            active_srlgs.remove(s)
-    return active_srlgs
-
+network_name = 'usa_99'
 
 # The network
-g = nx.read_gml('networks/usa_99.gml', label="id")
+g = nx.read_gml(f'networks/{network_name}.gml', label="id")
 L = len(g.edges)
 links = range(L)
 
 
 # The cut SRLGs
-with open ('min_cut_SRLGs/usa_99_10-4', 'rb') as fp:
+with open (f'min_cut_SRLGs/{network_name}', 'rb') as fp:
     cut_srlgs = pickle.load(fp)
+S = len(cut_srlgs)
 
-active_srlgs = cut_srlgs
-S = len(active_srlgs)
+# All SRLG
+all_srlgs, _ = get_SRLGs('PSRLGs/usa_99_complete_it6.xml')
 
 
 # The matrix of the intensity values, dimensions: [L,P,M] (link, position, magnitude)
-intensity = np.load('intensities/usa_99_ds23.npy')
+intensity = np.load(f'intensities/{network_name}_ds23.npy')
 
 
 # The matrix of earthquake probabilities, dimensions: [P,M] (position, magnitude)
@@ -49,18 +33,17 @@ epicenters = range(P)
 magnitudes = range(M)
 
 
+
 # Parameters
 Hnull = 6
 cost = 1
-T = 0.01
+Ts = [0.01, 0.005, 0.001, 0.0005]
+spine_bonus = 0
 
-for idx,T in enumerate(np.concatenate((np.arange(0.01, 0.001, -0.001), np.arange(0.001, 0.0004, -0.0001)))):
+for idx,TFA in enumerate(np.concatenate((np.arange(0.01, 0.001, -0.001), np.arange(0.001, 0.0004, -0.0001)))):
 
-    S = len(active_srlgs)
-    H = np.ones(L) * Hnull
-    for i, e in enumerate(g.edges):
-        if g.edges[e]['onspine']:
-            H[i] += 1
+    S = len(cut_srlgs)
+    H = np.array([Hnull+spine_bonus*g.edges[e]['onspine'] for e in g.edges])
 
     print(f'The shape of the intensity matrix: {intensity.shape}')
     print(f'Memory usage: {int(int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)/1000)} MB')
@@ -93,7 +76,7 @@ for idx,T in enumerate(np.concatenate((np.arange(0.01, 0.001, -0.001), np.arange
 
 
     #Constraint 2
-    for (c,s), p, m in product(*[enumerate(active_srlgs), epicenters, magnitudes]):
+    for (c,s), p, m in product(*[enumerate(cut_srlgs), epicenters, magnitudes]):
         model.add_constr( Z[c][p][m] >= (xsum(Y[list(g.edges).index(linkID)][p][m] for linkID in s) - len(s) + 1) )
     print("%.1f s:\tMásodik egyenlet létrehozva..."%(time.perf_counter()-start))
     print(f'Memory usage: {int(int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)/1000)} MB')
@@ -102,7 +85,7 @@ for idx,T in enumerate(np.concatenate((np.arange(0.01, 0.001, -0.001), np.arange
     for (c,s), p, m in product(*[enumerate(cut_srlgs), epicenters, magnitudes]):
         model.add_constr( W[p][m] >= Z[c][p][m] )
 
-    model.add_constr(xsum( W[p][m] * prob_matrix[p,m] for p,m in product(epicenters,magnitudes) ) <= T )
+    model.add_constr(xsum( W[p][m] * prob_matrix[p,m] for p,m in product(epicenters,magnitudes) ) <= TFA )
     print("%.1f s:\tHarmadik egyenlet létrehozva..."%(time.perf_counter()-start))
     print(f'Memory usage: {int(int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)/1000)} MB')
 
@@ -114,26 +97,27 @@ for idx,T in enumerate(np.concatenate((np.arange(0.01, 0.001, -0.001), np.arange
     # The result
     cost = 0
     selected = []
-    upgrade_ILP = []
+    dH = []
     for l,e in enumerate(g.edges):
+        dH.append(int(deltaH[l].x + 0.1))
         if deltaH[l].x >= 0.5:
             selected.append((deltaH[l].x,e, g.edges[e]['length']))
-            upgrade_ILP.append((e,deltaH[l].x))
             cost += deltaH[l].x * g.edges[e]['length']
     print(cost)
     print(*selected, sep='\n')
+    H = H + np.array(dH)
 
+    for T in Ts:
+        active_srlgs = [srlg for srlg in all_srlgs if get_SRLG_probability(srlg, g, intensity, H, prob_matrix)>T]
+        write_networkx_to_srg(f'results/{network_name}/{network_name}_TFA{TFA:.4f}_T{T}_H2_SB{spine_bonus}.srg', g, active_srlgs)
 
     # Saving the result
-    df_cost = pd.read_csv('results/Heuristic_comparison_usa_99_spine.csv')
-    with open ('results/Heuristic_upgraded_edges_usa_99_spine', 'rb') as fp:
-        result_edge = pickle.load(fp)
-
-    # idx = 0
+    df_cost = pd.read_csv(f'results/{network_name}/comparison_{network_name}_SB{spine_bonus}.csv')
     df_cost.loc[idx,'Runtime ILP'] = runtime_ILP
     df_cost.loc[idx,'Cost ILP'] = cost
-    result_edge[idx]['Upgrade ILP'] = upgrade_ILP
-
-    df_cost.to_csv('results/Heuristic_comparison_usa_99_spine.csv', index=False, float_format='%.5f')
-    with open('results/Heuristic_upgraded_edges_usa_99_spine', 'wb') as fp:
-        pickle.dump(result_edge, fp)
+    df_cost.to_csv(f'results/{network_name}/comparison_{network_name}_SB{spine_bonus}.csv', index=False, float_format='%.4f')
+    
+    df_H = pd.read_csv(f'results/{network_name}/upgrade_{network_name}_TFA{TFA:.4f}_SB{spine_bonus}.csv')
+    df_H['Delta H (ILP)'] = dH
+    df_H['H (ILP)'] = H
+    dfH.to_csv(f'results/{network_name}/upgrade_{network_name}_TFA{TFA:.4f}_SB{spine_bonus}.csv', index=False, float_format='%.4f')
