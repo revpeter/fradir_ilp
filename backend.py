@@ -141,14 +141,18 @@ def read_lgf_to_networkx_extended(lgf_file):
 def write_networkx_to_srg(network_name, G, SRLGs):
     f = open(str(network_name), 'w')
     f.write('@nodes\n')
-    f.write('label\tcoords\n')
+    f.write('label\tcoords\tunav\n')
     for node, attr in G.nodes(data=True):
-        f.write(str(node) + '\t(' + str(attr['Latitude']) + ',' + str(attr['Longitude']) + ')\n')
+        f.write(str(node) + '\t(' + str(attr['Latitude']) + ',' + str(attr['Longitude']) + ')\t0\n')
     f.write('@edges\n')
     f.write('\t\tlabel\tonspine\tunav\n')
     for label,(u,v) in enumerate(G.edges()):
         e = G[u][v][0]
         line = str("%d\t%d\t%d\t%d\t%.10f\n" % (u, v, label, e['onspine'], e['unav']))
+        f.write(line)
+    for label,(u,v) in enumerate(reversed(list(G.edges())), start=len(G.edges)):
+        e = G[u][v][0]
+        line = str("%d\t%d\t%d\t%d\t%.10f\n" % (v, u, label, e['onspine'], e['unav']))
         f.write(line)
     f.write('@srgs\n')
     for i, srlg in enumerate(SRLGs):
