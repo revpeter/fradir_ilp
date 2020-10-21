@@ -1,0 +1,37 @@
+<simulator>
+	<ProtectionMethod>ilp0</ProtectionMethod>
+	<AvailabilityMethod>pivotal</AvailabilityMethod>
+	<Network>
+		<NodeNum>26</NodeNum>
+		<EdgeNum>42</EdgeNum>
+		<SRLGNum>14</SRLGNum>
+		<SMn>0</SMn>
+		<Nullcap>0</Nullcap>
+		<Halfcap>0</Halfcap>
+		<DemandNum>325</DemandNum>
+		<Bottlenecks>0</Bottlenecks>
+	</Network>
+	<BacterialSettings>
+		<BacteriaNum>3</BacteriaNum>
+		<CloneNum>3</CloneNum>
+		<MutationNum>3</MutationNum>
+		<GenerationNum>3</GenerationNum>
+		<TransferNum>3</TransferNum>
+		<TransferRatio>0.2</TransferRatio>
+	</BacterialSettings>
+	<Statistics>
+		<UsedEdgeNumber>1671</UsedEdgeNumber>
+		<UsedCapacity>1671</UsedCapacity>
+		<SSBlockedConnections>0</SSBlockedConnections>
+		<TotalBlockedConnections>0</TotalBlockedConnections>
+		<AvgEdgeNumber>5.14154</AvgEdgeNumber>
+		<AvgCapacity>5.14154</AvgCapacity>
+		<BlockingProbability>0</BlockingProbability>
+		<SSBlockingProbability>0</SSBlockingProbability>
+		<AverageAvailability>0.9942</AverageAvailability>
+		<MinimumAvailability>0.983074</MinimumAvailability>
+		<TotalRunningTime>16.216000</TotalRunningTime>
+		<AvgRunningTime>0.0498954</AvgRunningTime>
+		<TotalBuildTime>0.008000</TotalBuildTime>
+	</Statistics>
+</simulator>

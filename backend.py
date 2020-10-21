@@ -9,7 +9,7 @@ from ast import literal_eval
 import re
 import pickle
 from svector import SVector
-
+from tqdm.notebook import tqdm
 
 # Intensity calculation
 def intensity_europe(M, R):
@@ -39,7 +39,7 @@ def remains_connected(g, srlg):
     g.remove_edges_from(srlg)
     return nx.is_connected(g.to_undirected())
 
-def get_minimal_cut_SRLGs(PSRLG_file):
+def get_minimal_cut_SRLGs(PSRLG_file, g):
     xtree = ET.parse(PSRLG_file)
     xroot = xtree.getroot().find('PSRLGList')
     cut_srlgs = []
@@ -100,8 +100,8 @@ def get_SRLG_probability(srlg, network, intensity_matrix, intensity_tolerance, p
 def read_lgf_to_networkx_extended(lgf_file):
     file = open(lgf_file, 'r')
     all_line = file.read().split('\n')
-    # edge: u v label onspine unavInit unavFinal
-    all_match = [re.findall(r'^(\d+)\t\((.+),(.+)\)|^(\d+)\t(\d+)\t(\d+)\t*(\d*)\t*(\S*)\t*(\S*)|(^\d+-\d+( \d+-\d+)+)', line) for line in all_line]
+    # edge: u v label [length] onspine unavInit unavFinal
+    all_match = [re.findall(r'^(\d+)\t\((.+),(.+)\)|^(\d+)\t(\d+)\t(\d+)\t*(\S*)\t*(\d*)\t*(\S*)\t*(\S*)|(^\d+-\d+( \d+-\d+)+)', line) for line in all_line]
     all_match = filter(len, all_match)
     G = nx.MultiGraph()
     SRLGs = []
@@ -112,30 +112,55 @@ def read_lgf_to_networkx_extended(lgf_file):
             G.add_node(int(line[0]), Longitude=float(line[1]), Latitude=float(line[2]))
         elif line[3]:
             u, v = int(line[3]), int(line[4])
-            G.add_edge(u,v)
-            G[u][v][0]['points'] = {'point': [
+            edge_key = G.add_edge(u,v)
+            G.edges[u, v, edge_key]['points'] = {'point': [
                 {'Longitude': G.nodes[u]['Longitude'], 'Latitude': G.nodes[u]['Latitude']},
                 {'Longitude': G.nodes[v]['Longitude'], 'Latitude': G.nodes[v]['Latitude']}]}
-            if line[8]:
-                onspine = int(line[6])
-                unav_1 = float(line[7])
-                unav_k = float(line[8])
-                G[u][v][0]['onspine'] = onspine
-                G[u][v][0]['unav1'] = unav_1
-                G[u][v][0]['unav'] = unav_k
-            elif line[7]:
-                onspine = int(line[6])
-                unav = float(line[7])
-                G[u][v][0]['onspine'] = onspine
-                G[u][v][0]['unav1'] = unav
-                G[u][v][0]['unav'] = unav
-        if line[9]:
-            srlg = line[9]
+            if line[6]:
+                length = float(line[6])
+                G.edges[u, v, edge_key]['length'] = length
+            if line[9]:
+                onspine = int(line[7])
+                unav_1 = float(line[8])
+                unav_k = float(line[9])
+                G.edges[u, v, edge_key]['onspine'] = onspine
+                G.edges[u, v, edge_key]['unav1'] = unav_1
+                G.edges[u, v, edge_key]['unav'] = unav_k
+            elif line[8]:
+                onspine = int(line[7])
+                unav = float(line[8])
+                G.edges[u, v, edge_key]['onspine'] = onspine
+                G.edges[u, v, edge_key]['unav1'] = unav
+                G.edges[u, v, edge_key]['unav'] = unav
+        if line[10]:
+            srlg = line[10]
             SRLGs.append([ tuple(map(int, link.split('-'))) for link in srlg.split()])
     if SRLGs:
         return G, SRLGs
     else:
         return G
+
+
+def write_networkx_to_lgf(G, network_name, extended=False):
+    f = open(str(network_name), 'w')
+    f.write('@nodes\n')
+    f.write('label\tcoords\n')
+    for node, attr in G.nodes(data=True):
+        f.write(str(node) + '\t(' + str(attr['Longitude']) + ',' + str(attr['Latitude']) + ')\n')
+    f.write('@edges\n')
+    if extended:
+        f.write('\t\tlabel\tonspine\tunav_1\tunav\n')
+    else:
+        f.write('\t\tlabel\tonspine\tunav\n')
+    for label,(u,v,k) in enumerate(G.edges):
+        e = G[u][v][k]
+        if extended:
+            line = str("%d\t%d\t%d\t%d\t%.10f\t%.6f\n" % (u, v, label, e['onspine'], e['unav_1'], e['unav']))
+        else:
+            line = str("%d\t%d\t%d\t%d\t%.10f\n" % (u, v, label, e['onspine'], e['unav']))
+        f.write(line)
+    f.close()
+    return 0
 
 
 def write_networkx_to_srg(network_name, G, SRLGs):

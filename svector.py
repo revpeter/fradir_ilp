@@ -11,7 +11,7 @@ class SVector:
         self.lat, self.lon = lat, lon
         x, y, z = _xyz_from_latlon(lat, lon)
         self._vector = Vector(x, y, z)
-        self._scale = math.cos(math.radians(35.))
+        self._scale = math.cos(math.radians(42.))
 
     def __getattr__(self, attr):
         return getattr(self._vector, attr)
