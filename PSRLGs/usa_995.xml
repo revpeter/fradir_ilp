@@ -1,6 +1,6 @@
 <simulation>
 <NetName>
-	usa_99
+	usa_26
 </NetName>
 <IntensityTolerance>	6</IntensityTolerance>
 <log_type>
@@ -15,17 +15,6 @@
 <PSRLGList>	
 	<PSRLG>
 		<Edges>
-		
-		</Edges>
-		<EdgeNum>
-			0
-		</EdgeNum>
-		<Probability>
-			1.925650501461599
-		</Probability>
-	</PSRLG>	
-	<PSRLG>
-		<Edges>
 			4:(1, 4)
 		</Edges>
 		<EdgeNum>
@@ -33,6 +22,17 @@
 		</EdgeNum>
 		<Probability>
 			4.700576263944353e-06
+		</Probability>
+	</PSRLG>	
+	<PSRLG>
+		<Edges>
+		
+		</Edges>
+		<EdgeNum>
+			0
+		</EdgeNum>
+		<Probability>
+			0.07434949853843531
 		</Probability>
 	</PSRLG>	
 	<PSRLG>
