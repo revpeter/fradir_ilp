@@ -4,7 +4,7 @@ from itertools import product
 import time
 import resource
 
-network_name = 'usa_995'
+network_name = 'italy_995'
 spine_bonus = 0
 
 # The network
@@ -24,11 +24,11 @@ all_srlgs, _ = get_SRLGs(f'PSRLGs/{network_name}.xml')
 
 
 # The matrix of the intensity values, dimensions: [L,P,M] (link, position, magnitude)
-intensity = np.load(f'intensities/{network_name}_ds23.npy')
+intensity = np.load(f'intensities/{network_name}_ds16.npy')
 
 
 # The matrix of earthquake probabilities, dimensions: [P,M] (position, magnitude)
-prob_matrix = pd.read_csv('earthquake_probabilities/usa_ds23.csv').drop(['Lat', 'Long'], axis=1).to_numpy()
+prob_matrix = pd.read_csv('earthquake_probabilities/italy_ds16.csv').drop(['Lat', 'Long'], axis=1).to_numpy()
 P, M = prob_matrix.shape
 epicenters = range(P)
 magnitudes = range(M)
@@ -36,12 +36,14 @@ magnitudes = range(M)
 Hnull = 6
 Ts = [0.01, 0.005, 0.001, 0.0005]
 
-for idx, TFA in enumerate([0.01, 0.009, 0.008, 0.007, 0.006, 0.005, 0.004, 0.003, 0.002, 0.001, 0.0009, 0.0008, 0.0007, 0.0006, 0.0005]):
+#for idx, TFA in enumerate([0.01, 0.009, 0.008, 0.007, 0.006, 0.005, 0.004, 0.003, 0.002, 0.001, 0.0009, 0.0008, 0.0007, 0.0006, 0.0005]):
+for idx, TFA in enumerate([0.0005], 14):
+
     start = time.perf_counter()
     H = np.array([Hnull+spine_bonus*g.edges[e]['onspine'] for e in g.edges])
 
     #Load model
-    model = Model()
+    model = Model(sense=MINIMIZE, solver_name=GRB)
     model.read(f'results/{network_name}/{network_name}_SB{spine_bonus}.lp')
     model.constrs[-1].rhs = TFA
 

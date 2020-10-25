@@ -1,8 +1,6 @@
 import pandas as pd
 import numpy as np
 import networkx as nx
-from shapely.geometry import Point, LineString
-from shapely.ops import nearest_points
 from geopy.distance import distance, lonlat
 import xml.etree.ElementTree as ET
 from ast import literal_eval

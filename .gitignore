@@ -2,6 +2,7 @@ intensities/*
 .vscode/
 .virtual_documents/
 *.out
+*.lp
 
 
 # Byte-compiled / optimized / DLL files
