@@ -5,7 +5,7 @@ import time
 import resource
 
 network_name = 'italy_995'
-spine_bonus = 0
+spine_bonus = 1
 
 # The network
 g = nx.read_gml(f'networks/{network_name}.gml', label="id")
@@ -14,7 +14,7 @@ links = range(L)
 
 
 # The cut SRLGs
-with open (f'min_cut_SRLGs/{network_name}', 'rb') as fp:
+with open (f'min_cut_SRLGs/{network_name}_2-4', 'rb') as fp:
     cut_srlgs = pickle.load(fp)
 S = len(cut_srlgs)
 
@@ -37,7 +37,7 @@ Hnull = 6
 Ts = [0.01, 0.005, 0.001, 0.0005]
 
 #for idx, TFA in enumerate([0.01, 0.009, 0.008, 0.007, 0.006, 0.005, 0.004, 0.003, 0.002, 0.001, 0.0009, 0.0008, 0.0007, 0.0006, 0.0005]):
-for idx, TFA in enumerate([0.0005], 14):
+for idx, TFA in enumerate([0.0009, 0.0008, 0.0007, 0.0006, 0.0005], 10):
 
     start = time.perf_counter()
     H = np.array([Hnull+spine_bonus*g.edges[e]['onspine'] for e in g.edges])

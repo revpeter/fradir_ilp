@@ -13,7 +13,7 @@ links = range(L)
 
 
 # The cut SRLGs
-with open (f'min_cut_SRLGs/{network_name}', 'rb') as fp:
+with open (f'min_cut_SRLGs/{network_name}_2-4', 'rb') as fp:
     cut_srlgs = pickle.load(fp)
 S = len(cut_srlgs)
 
@@ -53,11 +53,6 @@ print("%.1f s:\tVáltozók létrehozva..."%(time.perf_counter()-start))
 model.objective = xsum( g.edges[link_id]['length'] * deltaH[link_idx] for link_idx,link_id in enumerate(g.edges) )
 print("%.1f s:\tCélfüggvény létrehozva..."%(time.perf_counter()-start))
 
-#Constraint 3
-for (c,s), p, m in product(*[enumerate(cut_srlgs), epicenters, magnitudes]):
-    model.add_constr( W[p][m] >= Z[c][p][m] )
-print("%.1f s:\tHarmadik egyenlet létrehozva..."%(time.perf_counter()-start))
-
 #Constraint 1
 for l,p,m in product(*[links, epicenters, magnitudes]):
     model.add_constr( Y[l][p][m] >= 1 - ((H[l] + deltaH[l]) / intensity[l,p,m]) )
@@ -68,7 +63,12 @@ for (c,s), p, m in product(*[enumerate(cut_srlgs), epicenters, magnitudes]):
     model.add_constr( Z[c][p][m] >= (xsum(Y[list(g.edges).index(linkID)][p][m] for linkID in s) - len(s) + 1) )
 print("%.1f s:\tMásodik egyenlet létrehozva..."%(time.perf_counter()-start))
 
-model.add_constr(xsum( W[p][m] * prob_matrix[p,m] for p,m in product(epicenters,magnitudes) ) <= TFA )
+#Constraint 3
+for (c,s), p, m in product(*[enumerate(cut_srlgs), epicenters, magnitudes]):
+    model.add_constr( W[p][m] >= Z[c][p][m] )
 print("%.1f s:\tHarmadik egyenlet létrehozva..."%(time.perf_counter()-start))
+
+model.add_constr(xsum( W[p][m] * prob_matrix[p,m] for p,m in product(epicenters,magnitudes) ) <= TFA )
+print("%.1f s:\tNegyedik egyenlet létrehozva..."%(time.perf_counter()-start))
 
 model.write(f'results/{network_name}/{network_name}_SB{spine_bonus}.lp')
