@@ -37,6 +37,10 @@ def remains_connected(g, srlg):
     g.remove_edges_from(srlg)
     return nx.is_connected(g.to_undirected())
 
+def reamins_k_connected(g, srlg):
+    g.remove_edges_from(srlg)
+    return nx.is_k_edge_connected(g.to_undirected())
+
 def get_minimal_cut_SRLGs(PSRLG_file, g):
     xtree = ET.parse(PSRLG_file)
     xroot = xtree.getroot().find('PSRLGList')
@@ -99,7 +103,7 @@ def read_lgf_to_networkx_extended(lgf_file):
     file = open(lgf_file, 'r')
     all_line = file.read().split('\n')
     # edge: u v label [length] onspine unavInit unavFinal
-    all_match = [re.findall(r'^(\d+)\t\((.+),(.+)\)|^(\d+)\t(\d+)\t(\d+)\t*(\S{0})\t*(\d+)\t*(\S+)\t*(\S+)|(^\d+-\d+( \d+-\d+)+)', line) for line in all_line]
+    all_match = [re.findall(r'^(\d+)\t\((.+),(.+)\)|^(\d+)\t(\d+)\t(\d+)\t*(\S{0})\t*(\d+)\t*(\S+)\t*(\S*)|(^\d+-\d+( \d+-\d+)+)', line) for line in all_line]
     all_match = filter(len, all_match)
     G = nx.MultiGraph()
     SRLGs = []
